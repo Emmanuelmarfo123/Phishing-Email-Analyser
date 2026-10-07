@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!--
+    PRIVACY LOCK (Content Security Policy)
+    This line tells the browser what this page is allowed to do. In plain English:
+      - only run scripts and styles that ship with this website ('self')
+      - connect-src 'none'  → the page may NOT send data to ANY server, not even its own
+      - form-action 'none'  → forms can never be submitted anywhere
+      - media-src blob:     → audio you load stays on your own computer
+    If any code tried to upload an email, the browser would block it.
+  -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; media-src blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Phishing Email Analyser</title>
+  <meta name="description" content="Paste a suspicious email or call transcript and get a private, in-browser phishing analysis. Nothing is uploaded.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<!--@@BODY_START@@-->
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M4 8h24v16H4z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><path d="M4 8l12 9 12-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/><circle cx="24" cy="23" r="6" class="bm-dot"/><path d="M24 20v3.5M24 25.6v.4" class="bm-bang" stroke-width="2" stroke-linecap="round"/></svg>
+      <div>
+        <h1>Phishing Email Analyser</h1>
+        <p class="tagline">Spot the tricks before they work on you.</p>
+      </div>
+    </div>
+    <p class="privacy-chip" title="Analysis runs entirely in this browser tab. The page is blocked from contacting any server.">
+      <span class="dot" aria-hidden="true"></span> Runs offline in your browser · nothing uploaded
+    </p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" id="tab-analyse" aria-controls="view-analyse" aria-selected="true" data-view="analyse">Analyse</button>
+    <button role="tab" id="tab-challenge" aria-controls="view-challenge" aria-selected="false" data-view="challenge">Challenge</button>
+    <button role="tab" id="tab-training" aria-controls="view-training" aria-selected="false" data-view="training">Training</button>
+    <button role="tab" id="tab-dashboard" aria-controls="view-dashboard" aria-selected="false" data-view="dashboard">Dashboard</button>
+    <button role="tab" id="tab-about" aria-controls="view-about" aria-selected="false" data-view="about">Privacy &amp; how it works</button>
+  </nav>
+
+  <!-- ═════════════ ANALYSE ═════════════ -->
+  <main>
+  <section class="view" id="view-analyse" role="tabpanel" aria-labelledby="tab-analyse">
+    <div class="workbench">
+      <div class="input-panel">
+        <div class="seg" role="radiogroup" aria-label="What are you analysing?">
+          <button type="button" role="radio" aria-checked="true" data-mode="email" id="mode-email">Email / message</button>
+          <button type="button" role="radio" aria-checked="false" data-mode="voice" id="mode-voice">Voice call</button>
+        </div>
+
+        <div id="voice-tools" class="voice-tools" hidden>
+          <label class="file-btn" for="audio-file">Load a recording (stays on this device)</label>
+          <input type="file" id="audio-file" accept="audio/*" class="visually-hidden">
+          <audio id="audio-player" controls hidden></audio>
+          <p class="hint">Play the recording and type or paste what the caller said below. Automatic transcription is switched off on purpose: the speech recognition built into browsers sends audio to Google or Apple servers, which would break this tool's privacy promise.</p>
+        </div>
+
+        <label for="email-input" class="field-label" id="input-label">Paste the suspicious email: headers, body, links and attachment names</label>
+        <textarea id="email-input" spellcheck="false" placeholder="Tip: include the From / Reply-To lines and full headers if you have them. You can also paste HTML source."></textarea>
+
+        <div class="input-actions">
+          <button type="button" class="btn primary" id="analyse-btn">Analyse Email</button>
+          <button type="button" class="btn ghost" id="clear-btn">Clear</button>
+          <label class="examples">
+            <span class="visually-hidden">Load an example</span>
+            <select id="example-select">
+              <option value="">Try an example…</option>
+            </select>
+          </label>
+        </div>
+        <label class="check"><input type="checkbox" id="save-history" checked> Add an anonymous summary (score and warning-sign names only, never the text) to my dashboard in this browser</label>
+      </div>
+
+      <div class="report" id="report" aria-live="polite">
+        <div class="empty-state" id="empty-state">
+          <h2>What this checks</h2>
+          <ul class="check-list">
+            <li><b>Language</b>: urgency, threats, requests for passwords, MFA codes, payments, gift cards and bank-detail changes</li>
+            <li><b>Links</b>: look-alike domains, shortened links, raw IP addresses, "@" tricks and link text that lies about its destination</li>
+            <li><b>Attachments</b>: executables, double extensions, macro documents and "Enable Content" requests</li>
+            <li><b>Sender</b>: SPF/DKIM/DMARC failures, Reply-To mismatches and fake display names</li>
+            <li><b>Voice calls</b>: impersonated banks and IT staff, "safe accounts" and remote-access requests</li>
+          </ul>
+          <p class="hint">Pick an example from the menu to see a full report.</p>
+        </div>
+        <div id="report-body" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═════════════ CHALLENGE ═════════════ -->
+  <section class="view" id="view-challenge" role="tabpanel" aria-labelledby="tab-challenge" hidden>
+    <div class="view-head">
+      <div>
+        <h2>Phishing awareness challenge</h2>
+        <p class="lede">Twelve real-world style messages. Decide whether each is phishing, then tick the red flags you spotted. Your results build your personal awareness score.</p>
+      </div>
+      <div class="score-pill" id="challenge-progress">0 / 12</div>
+    </div>
+    <div id="challenge-area"></div>
+  </section>
+
+  <!-- ═════════════ TRAINING ═════════════ -->
+  <section class="view" id="view-training" role="tabpanel" aria-labelledby="tab-training" hidden>
+    <div class="view-head">
+      <div>
+        <h2>Your training plan</h2>
+        <p class="lede">Lessons are ordered by what you need most, based on your challenge answers and the messages you have analysed.</p>
+      </div>
+      <div class="score-pill" id="training-progress">0 / 9 complete</div>
+    </div>
+    <div id="training-area" class="training-list"></div>
+  </section>
+
+  <!-- ═════════════ DASHBOARD ═════════════ -->
+  <section class="view" id="view-dashboard" role="tabpanel" aria-labelledby="tab-dashboard" hidden>
+    <div class="view-head">
+      <div>
+        <h2>Security awareness dashboard</h2>
+        <p class="lede">Everything here is calculated from data stored only in this browser. Team results are loaded from files people share with you and never leave your computer.</p>
+      </div>
+    </div>
+    <div id="dashboard-area"></div>
+  </section>
+
+  <!-- ═════════════ ABOUT ═════════════ -->
+  <section class="view prose" id="view-about" role="tabpanel" aria-labelledby="tab-about" hidden>
+    <h2>Privacy &amp; how it works</h2>
+    <h3>Your email never leaves this page</h3>
+    <p>All analysis is done by JavaScript running inside your browser tab. There is no server, no AI service, no analytics and no tracking. The page includes a <em>Content Security Policy</em> that forbids it from connecting to any server at all, so even a bug could not upload your text.</p>
+    <p>You can check this yourself: open your browser's developer tools (F12), go to the <b>Network</b> tab, and click <b>Analyse</b>. No new requests appear. You can also disconnect from the internet and the analyser keeps working.</p>
+    <h3>What is stored</h3>
+    <p>If you leave the checkbox ticked, the analyser saves a small summary of each analysis in your browser's local storage: the date, the score, and the names of the warning signs. It never saves the message itself. Challenge answers and training progress are stored the same way. Use the button below to delete all of it.</p>
+    <p><button type="button" class="btn danger" id="wipe-btn">Delete all data stored by this site</button> <span id="wipe-status" class="hint" role="status"></span></p>
+    <h3>How the score works</h3>
+    <p>Each warning sign has a weight that reflects how strongly it predicts phishing. A password request counts far more than a generic greeting. Signs that are much more dangerous together, such as a credential request plus a fake link, add a bonus. The total is converted to a 0–100 scale: <b>Low</b> (0–19), <b>Medium</b> (20–44), <b>High</b> (45–69), <b>Critical</b> (70–100).</p>
+    <h3>Limits</h3>
+    <p>This is a rule-based teaching tool, not a security product. It can miss well-crafted attacks and can flag legitimate messages. It never visits links, so it cannot see what a website actually contains. A low score is not proof that a message is safe. When in doubt, verify through a channel you trust and report it to your security team.</p>
+  </section>
+  </main>
+
+  <footer class="foot">
+    <p>Open source, static and free. Works offline. No accounts, no cookies, no tracking.</p>
+  </footer>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<!--@@BODY_END@@-->
+<script src="js/rules.js"></script>
+<script src="js/analyser.js"></script>
+<script src="js/guidance.js"></script>
+<script src="js/content.js"></script>
+<script src="js/core.js"></script>
+<script src="js/app.js"></script>
+<script src="js/learn.js"></script>
+<script src="js/dashboard.js"></script>
+</body>
+</html>
