@@ -43,11 +43,12 @@ All three options are free for static sites like this one.
 | `js/analyser.js` | The **detection engine**: reads the text, checks links, attachments and headers, calculates the score and extracts IOCs. |
 | `js/guidance.js` | Turns findings into "what happens if…", the attack path and incident-response steps. |
 | `js/content.js` | Example emails, the 12 challenge messages and the training lessons. |
+| `js/eml.js` | Hand-written `.eml` reader: unwraps MIME parts, base64 / quoted-printable and encoded headers into plain text for the analyser. |
 | `js/core.js` | Shared helpers: safe storage, safe display of text, awareness-score formula. |
-| `js/app.js` | Connects the Analyse page buttons to the engine and draws the report. |
+| `js/app.js` | Connects the Analyse page buttons (including `.eml` drag-and-drop, read locally with `FileReader`) to the engine and draws the report. |
 | `js/learn.js` | The Challenge and Training pages. |
 | `js/dashboard.js` | Personal and team dashboards. |
-| `tests/run-tests.js` | 70 automated checks for the detection engine (`node tests/run-tests.js`). |
+| `tests/run-tests.js` | 94 automated checks for the detection engine (`node tests/run-tests.js`). |
 | `tools/build-preview.py` | Makes a single-file copy (`dist/preview.html`) for previews. Not needed for hosting. |
 
 ---

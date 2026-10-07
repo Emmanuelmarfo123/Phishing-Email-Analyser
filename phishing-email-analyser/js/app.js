@@ -72,8 +72,52 @@
     run(false);
   });
 
+  // ── .eml import ──────────────────────────────────────────────────────────
+  // FileReader hands the file's bytes to this tab only; nothing is sent anywhere (the CSP would block it).
+  const EML_MAX_BYTES = 25 * 1024 * 1024; // the usual mail-server size limit
+  function importEml(file) {
+    if (!file) return;
+    if (!/\.eml$/i.test(file.name) && file.type !== 'message/rfc822') { P.toast('That is not an .eml file.'); return; }
+    if (file.size > EML_MAX_BYTES) { P.toast('That file is over 25 MB. Too large to open here.'); return; }
+    const reader = new FileReader();
+    reader.onerror = () => P.toast('Could not read that file.');
+    reader.onload = () => {
+      let parsed;
+      try { parsed = P.parseEml(reader.result); } catch (e) { P.toast('That file could not be read as an email.'); return; }
+      if (!parsed.text.trim()) { P.toast('No readable text was found in that file.'); return; }
+      setMode('email');
+      $('email-input').value = parsed.text;
+      $('eml-status').replaceChildren(
+        h('b', {}, file.name), ' · body from ', parsed.source === 'none' ? 'headers only' : parsed.source,
+        parsed.files.length ? ` · ${parsed.files.length} attachment${parsed.files.length === 1 ? '' : 's'} listed` : null);
+      run(false, true);
+      P.toast('Loaded ' + file.name + ' (read locally, not uploaded)');
+    };
+    reader.readAsArrayBuffer(file);
+  }
+  $('eml-file').addEventListener('change', e => { importEml(e.target.files[0]); e.target.value = ''; });
+
+  // Dropping works on the box and on the text area. Only file drags are intercepted, so dragging plain text into the area still works.
+  const dropzone = $('eml-drop');
+  const dragHasFiles = e => Array.from((e.dataTransfer || {}).types || []).includes('Files');
+  for (const el of [dropzone, $('email-input')]) {
+    el.addEventListener('dragover', e => {
+      if (!dragHasFiles(e)) return;
+      e.preventDefault(); // without this the browser refuses the drop and opens the file instead
+      e.dataTransfer.dropEffect = 'copy';
+      dropzone.classList.add('dragover');
+    });
+    el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) dropzone.classList.remove('dragover'); });
+    el.addEventListener('drop', e => {
+      if (!dragHasFiles(e)) return;
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      importEml(e.dataTransfer.files[0]);
+    });
+  }
+
   $('clear-btn').addEventListener('click', () => {
-    $('email-input').value = '';
+    $('email-input').value = ''; $('eml-status').textContent = '';
     $('report-body').hidden = true; $('empty-state').hidden = false;
     lastReport = null;
     $('email-input').focus();
@@ -81,12 +125,13 @@
   $('analyse-btn').addEventListener('click', () => run(true));
   $('email-input').addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') run(true); });
 
-  function run(record) {
+  // fromFile: the text came from the user's own .eml, so don't label the report a "built-in example".
+  function run(record, fromFile) {
     const text = $('email-input').value;
     if (!text.trim()) { P.toast('Paste a message first, or pick an example.'); $('email-input').focus(); return; }
     const report = P.analyse(text, mode);
     lastReport = report;
-    render(report, !record);
+    render(report, !record && !fromFile);
     if (record && $('save-history').checked) {
       P.store.update(s => {
         s.history.push({ t: report.analysedAt, score: report.score, level: report.level, mode: report.mode, ids: report.findings.map(f => f.id), titles: report.findings.map(f => f.title), skills: report.skills });
