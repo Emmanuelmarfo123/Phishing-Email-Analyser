@@ -247,6 +247,78 @@
       title: 'Asks for card numbers, CVV or PIN',
       patterns: [/\b(card number|long number on (the front|your card)|cvv|cvc|security code on the back|three[- ]digit code|expiry date|pin number)\b/gi],
       explain: 'Your full card number, CVV and PIN are never needed by someone who is calling to help you. Sharing them lets the caller spend your money.'
+    },
+
+    // ── German-language variants (de) — same warning signs, German wording ───
+    {
+      id: 'urgency-de', skill: 'pressure', weight: 12, modes: BOTH,
+      title: 'Urgency and pressure language (German)',
+      patterns: [
+        /\bdringend\b/gi, /\bsofort\b/gi, /\bumgehend\b/gi,
+        /\binnerhalb von \d+\s*(stunden?|minuten?|tagen?)\b/gi,
+        /\bletzte (mahnung|warnung|erinnerung)\b/gi,
+        /\b(jetzt|umgehend) (handeln|bestätigen|verifizieren|reagieren)\b/gi,
+        /\bfrist (läuft ab|endet)\b/gi
+      ],
+      explain: 'German urgency wording such as "dringend", "sofort" or "innerhalb von 24 Stunden" is used to rush you into acting before you think.'
+    },
+    {
+      id: 'threat-de', skill: 'pressure', weight: 15, modes: BOTH,
+      title: 'Threat of account suspension or closure (German)',
+      patterns: [
+        /\b(ihr|dein|das)\s+(konto|postfach|zugang|zugriff|karte|abonnement)\b[^.\n]{0,40}\b(gesperrt|deaktiviert|geschlossen|eingeschränkt|gekündigt|gelöscht)\b/gi,
+        /\b(sperrung|schließung|kündigung|löschung)\b[^.\n]{0,30}\b(ihres|deines|des)\b/gi,
+        /\bungewöhnliche[r]? (anmeldung|aktivität|zugriff)\b/gi,
+        /\bunbefugter zugriff\b/gi, /\brechtliche schritte\b/gi
+      ],
+      explain: 'Threatening in German to suspend, close or delete your account ("Konto gesperrt", "rechtliche Schritte") is the same scare tactic seen in English phishing.'
+    },
+    {
+      id: 'password-request-de', skill: 'credentials', weight: 25, modes: BOTH,
+      title: 'Request for your password or login details (German)',
+      patterns: [
+        /\b(bestätigen|verifizieren|aktualisieren|eingeben|bestätige|verifiziere)\b[^.\n]{0,40}\b(passwort|kennwort|zugangsdaten|anmeldedaten|pin)\b/gi,
+        /\bverifizieren sie\b[^.\n]{0,30}\b(ihr|ihre)\b[^.\n]{0,20}\b(konto|identität|e-?mail|postfach)\b/gi,
+        /\b(konto|identität)\b[^.\n]{0,20}\b(bestätigen|verifizieren)\b/gi,
+        /\bmelden sie sich\b[^.\n]{0,30}\b(bestätigen|verifizieren|entsperren)\b/gi
+      ],
+      explain: 'Legitimate German services never ask you to "confirm" your Passwort or Zugangsdaten by email. Capturing your login is the usual goal of phishing.'
+    },
+    {
+      id: 'mfa-request-de', skill: 'mfa', weight: 25, modes: BOTH,
+      title: 'Request for a code / TAN (German)',
+      patterns: [
+        /\b(code|bestätigungscode|einmalpasswort|einmalkennwort|tan|sms-?code)\b[^.\n]{0,30}\b(senden|teilen|weiterleiten|eingeben|mitteilen|nennen|durchgeben)\b/gi,
+        /\b(geben|teilen) sie\b[^.\n]{0,25}\b(code|tan)\b/gi
+      ],
+      explain: 'A one-time Code or TAN is the last defence after your password. Anyone asking you to share it is trying to bypass it.'
+    },
+    {
+      id: 'money-de', skill: 'money', weight: 22, modes: BOTH,
+      title: 'Payment, gift-card or bank-detail request (German)',
+      patterns: [
+        /\bgutschein(karten?|codes?)?\b/gi, /\b(sofortige|dringende) (überweisung|zahlung)\b/gi,
+        /\b(bankverbindung|kontoverbindung|bankdaten)\b[^.\n]{0,30}\b(geändert|ändern|aktualisieren|neu)\b/gi,
+        /\boffene[r]? (rechnung|betrag|forderung)\b/gi, /\b(zoll|versand|liefer)(gebühr|kosten)\b/gi
+      ],
+      explain: 'German requests for Gutscheine, a rushed Überweisung or a changed Bankverbindung are hard to reverse, which is why scammers prefer them.'
+    },
+    {
+      id: 'generic-greeting-de', skill: 'impersonation', weight: 6, modes: ['email'],
+      title: 'Generic greeting instead of your name (German)',
+      patterns: [
+        /^\s*(sehr geehrte[r]?\s+(kunde|kundin|nutzer|benutzer|kontoinhaber|mitglied)|hallo\s+(kunde|nutzer|benutzer)|lieber kunde)\b/gim
+      ],
+      explain: 'Bulk German phishing often uses a vague greeting ("Sehr geehrter Kunde") because it is sent to thousands of people at once.'
+    },
+    {
+      id: 'click-lure-de', skill: 'links', weight: 8, modes: ['email'],
+      title: 'Pushes you to click a link or open a file (German)',
+      patterns: [
+        /\bhier klicken\b/gi, /\b(klicken|tippen) sie (hier|auf den link|unten|auf die schaltfläche)\b/gi,
+        /\böffnen sie (den|die) (anhang|anlage|datei)\b/gi
+      ],
+      explain: 'The call to action is where the attack happens. Hover over links (do not click) to see where they really lead.'
     }
   ];
 
