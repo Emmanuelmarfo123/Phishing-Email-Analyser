@@ -125,7 +125,13 @@ let e = P.parseEml(bin(eml([
   '',
   'TVqQAAMAAAAEAAAA',
   '--OUTER--', ''])));
-check('uses the text/plain part', e.source === 'text/plain' && !/HTML copy/.test(e.text), e.source);
+check(
+  'analyses both plain text and HTML',
+  e.source === 'text/plain + text/html' &&
+  e.text.includes('HTML copy') &&
+  e.text.includes('Dear Customer'),
+  e.source
+);
 check('soft line break joined ("password")', /confirm your password at/.test(e.text), e.text);
 check('QP UTF-8 bytes decoded (em dash)', e.text.includes('hours — or'));
 check('RFC 2047 base64 display name decoded', e.text.includes('From: PayPal Security <service@paypa1-secure.xyz>'));
@@ -157,7 +163,6 @@ e = P.parseEml(bin(eml([
   '--B', 'Content-Type: message/rfc822', '', 'From: "Bank" <alerts@bank-secure.top>', 'Subject: Urgent', 'Content-Type: text/plain', '',
   'Verify your account immediately.', '--B--', ''])));
 check('forwarded message: inner headers used', e.text.includes('alerts@bank-secure.top') && !e.text.includes('employee@corp.example'), e.text);
-
 // Hostile / odd input must never throw or inject headers
 e = P.parseEml(bin(eml(['From: a@b.com', 'Subject: =?UTF-8?Q?hi=0AReply-To:_evil@x.ru?=', '', 'body'])));
 check('encoded newline cannot fake a header line', !/^Reply-To:/m.test(e.text), e.text);
@@ -166,6 +171,35 @@ check('empty file → empty text', P.parseEml('').text === '' && P.parseEml(new 
 let threw = false;
 try { P.parseEml(bin('Content-Type: multipart/mixed; boundary=X\n\n--X\nContent-Type: multipart/mixed; boundary=X\n\n--X\nContent-Transfer-Encoding: base64\n\n!!!\n')); P.parseEml('Content-Type: text/plain; charset=nope\n\n=ZZ =\n'); } catch (err) { threw = true; }
 check('malformed MIME does not throw', !threw);
-
+console.log('\nMultipart HTML phishing test');
+e = P.parseEml(bin(eml([
+  'From: Security <noreply@example.com>',
+  'Subject: Account notification',
+  'MIME-Version: 1.0',
+  'Content-Type: multipart/alternative; boundary="TEST"',
+  '',
+  '--TEST',
+  'Content-Type: text/plain; charset=utf-8',
+  '',
+  'Your account is safe.',
+  '--TEST',
+  'Content-Type: text/html; charset=utf-8',
+  '',
+  '<html><body><a href="http://secure-update.top/x">https://www.paypal.com/signin</a></body></html>',
+  '--TEST--',
+  ''
+])));
+check(
+  'both plain text and HTML are analysed',
+  e.source === 'text/plain + text/html' &&
+  e.text.includes('Your account is safe.') &&
+  e.text.includes('http://secure-update.top/x')
+);
+r = P.analyse(e.text, 'email');
+check(
+  'detects misleading link in multipart HTML',
+  ids(r).includes('url-misleading-text'),
+  ids(r).join(',')
+);
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);
