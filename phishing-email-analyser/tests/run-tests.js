@@ -7,6 +7,7 @@ require('../js/rules.js');
 require('../js/analyser.js');
 require('../js/guidance.js');
 require('../js/content.js');
+require('../js/eml.js');
 const P = globalThis.PEA;
 
 let pass = 0, fail = 0;
@@ -86,6 +87,85 @@ for (const c of P.CHALLENGE) {
   const rr = P.analyse('From: ' + c.from + '\n\n' + c.body, c.kind === 'Voice' ? 'voice' : 'email');
   check(`challenge ${c.id} (${c.phish ? 'phish' : 'legit'}) → ${rr.level} ${rr.score}`, c.phish ? rr.score >= 45 : rr.score < 20, ids(rr).join(','));
 }
+
+console.log('\n.eml import (parser only)');
+const b64 = t => Buffer.from(t, 'utf8').toString('base64').replace(/(.{60})/g, '$1\r\n');
+const eml = lines => lines.join('\r\n');   // real .eml files use CRLF
+const bin = t => Buffer.from(t, 'utf8').toString('binary'); // what FileReader gives us: one char per byte
+
+// multipart/alternative: quoted-printable plain text wins over HTML; encoded subject; attachment name
+let e = P.parseEml(bin(eml([
+  'From: =?UTF-8?B?UGF5UGFsIFNlY3VyaXR5?= <service@paypa1-secure.xyz>',
+  'Reply-To: help@mail-collector.ru',
+  'Subject: =?UTF-8?Q?Your_account_has_been_suspended_=E2=80=93_?=',
+  ' =?UTF-8?Q?act_now?=',
+  'Authentication-Results: mx.example.com; spf=fail smtp.mailfrom=paypa1-secure.xyz; dkim=none; dmarc=fail',
+  'X-Noise: should not be copied',
+  'MIME-Version: 1.0',
+  'Content-Type: multipart/mixed; boundary="OUTER"',
+  '',
+  '--OUTER',
+  'Content-Type: multipart/alternative; boundary="INNER"',
+  '',
+  '--INNER',
+  'Content-Type: text/plain; charset=utf-8',
+  'Content-Transfer-Encoding: quoted-printable',
+  '',
+  'Dear Customer, please verify your account and confirm your pass=',
+  'word at http://paypal.com.account-verify.xyz/login within 24 hours =E2=80=94 or it will be suspended.',
+  '--INNER',
+  'Content-Type: text/html; charset=utf-8',
+  '',
+  '<html><body><p>HTML copy that must be ignored</p></body></html>',
+  '--INNER--',
+  '--OUTER',
+  'Content-Type: application/octet-stream; name="Invoice_4471.pdf.exe"',
+  'Content-Disposition: attachment; filename="Invoice_4471.pdf.exe"',
+  'Content-Transfer-Encoding: base64',
+  '',
+  'TVqQAAMAAAAEAAAA',
+  '--OUTER--', ''])));
+check('uses the text/plain part', e.source === 'text/plain' && !/HTML copy/.test(e.text), e.source);
+check('soft line break joined ("password")', /confirm your password at/.test(e.text), e.text);
+check('QP UTF-8 bytes decoded (em dash)', e.text.includes('hours — or'));
+check('RFC 2047 base64 display name decoded', e.text.includes('From: PayPal Security <service@paypa1-secure.xyz>'));
+check('RFC 2047 folded Q subject decoded', e.text.includes('Subject: Your account has been suspended – act now'), e.text.split('\n')[2]);
+check('noisy headers are not copied', !/X-Noise|MIME-Version/.test(e.text));
+check('attachment name listed', e.files.length === 1 && e.files[0] === 'Invoice_4471.pdf.exe', JSON.stringify(e.files));
+r = P.analyse(e.text, 'email');
+['reply-to-mismatch', 'spf-fail', 'dmarc-fail', 'display-brand-mismatch', 'password-request', 'att-double-ext', 'url-brand-mismatch']
+  .forEach(id => check('analyser sees ' + id + ' via .eml', ids(r).includes(id), ids(r).join(',')));
+
+// HTML-only, base64: tags stripped but the real link address survives so link checks still work
+e = P.parseEml(bin(eml([
+  'From: Security <noreply@example.com>', 'Subject: Sign in',
+  'Content-Type: text/html; charset=utf-8', 'Content-Transfer-Encoding: base64', '',
+  b64('<html><head><style>p{color:red}</style></head><body><p>Dear user,&nbsp;sign in to <a href="http://secure-update.top/x">https://www.paypal.com/signin</a></p><script>alert(1)</script></body></html>')])));
+check('HTML-only falls back to text/html', e.source === 'text/html', e.source);
+check('no tags / script / style left', !/<\/?(p|body|script|style|html)\b|alert\(1\)|color:red/.test(e.text), e.text);
+check('entity decoded', e.text.includes('Dear user, sign in'), e.text);
+r = P.analyse(e.text, 'email');
+check('misleading link text still detected from stripped HTML', ids(r).includes('url-misleading-text'), ids(r).join(','));
+
+// Latin-1 8-bit body is decoded with its declared charset
+e = P.parseEml(new Uint8Array(Buffer.from('From: a@b.com\r\nContent-Type: text/plain; charset=iso-8859-1\r\n\r\nCaf\xe9 menu', 'latin1')).buffer);
+check('ISO-8859-1 body (ArrayBuffer input)', e.text.includes('Café menu'), e.text);
+
+// Forwarded-as-attachment: the inner email is the one analysed
+e = P.parseEml(bin(eml([
+  'From: employee@corp.example', 'Subject: Fwd: suspicious', 'Content-Type: multipart/mixed; boundary="B"', '',
+  '--B', 'Content-Type: message/rfc822', '', 'From: "Bank" <alerts@bank-secure.top>', 'Subject: Urgent', 'Content-Type: text/plain', '',
+  'Verify your account immediately.', '--B--', ''])));
+check('forwarded message: inner headers used', e.text.includes('alerts@bank-secure.top') && !e.text.includes('employee@corp.example'), e.text);
+
+// Hostile / odd input must never throw or inject headers
+e = P.parseEml(bin(eml(['From: a@b.com', 'Subject: =?UTF-8?Q?hi=0AReply-To:_evil@x.ru?=', '', 'body'])));
+check('encoded newline cannot fake a header line', !/^Reply-To:/m.test(e.text), e.text);
+check('plain text with no headers is used as-is', P.parseEml('just some pasted words').text === 'just some pasted words');
+check('empty file → empty text', P.parseEml('').text === '' && P.parseEml(new ArrayBuffer(0)).source === 'none');
+let threw = false;
+try { P.parseEml(bin('Content-Type: multipart/mixed; boundary=X\n\n--X\nContent-Type: multipart/mixed; boundary=X\n\n--X\nContent-Transfer-Encoding: base64\n\n!!!\n')); P.parseEml('Content-Type: text/plain; charset=nope\n\n=ZZ =\n'); } catch (err) { threw = true; }
+check('malformed MIME does not throw', !threw);
 
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

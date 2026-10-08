@@ -59,6 +59,14 @@
           <p class="hint">Play the recording and type or paste what the caller said below. Automatic transcription is switched off on purpose: the speech recognition built into browsers sends audio to Google or Apple servers, which would break this tool's privacy promise.</p>
         </div>
 
+        <!-- .eml import: the file is read with FileReader in this tab only. CSP blocks all uploads anyway. -->
+        <div class="dropzone" id="eml-drop">
+          <input type="file" id="eml-file" accept=".eml,message/rfc822" class="visually-hidden">
+          <label for="eml-file" class="dz-label"><b>Drop an .eml file here</b> or click to browse</label>
+          <p class="hint">Opened and read inside this browser tab only. It is never uploaded.</p>
+          <p class="hint" id="eml-status" role="status"></p>
+        </div>
+
         <label for="email-input" class="field-label" id="input-label">Paste the suspicious email: headers, body, links and attachment names</label>
         <textarea id="email-input" spellcheck="false" placeholder="Tip: include the From / Reply-To lines and full headers if you have them. You can also paste HTML source."></textarea>
 
@@ -155,6 +163,7 @@
 <script src="js/guidance.js"></script>
 <script src="js/content.js"></script>
 <script src="js/core.js"></script>
+<script src="js/eml.js"></script>
 <script src="js/app.js"></script>
 <script src="js/learn.js"></script>
 <script src="js/dashboard.js"></script>
