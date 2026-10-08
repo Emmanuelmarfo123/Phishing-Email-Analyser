@@ -217,9 +217,16 @@
 
     const plain = bag.plain.map(t => t.trim()).filter(Boolean);
     const html = bag.html.map(htmlToText).filter(Boolean);
-    const body = (plain.length ? plain : html).join('\n\n');
-    const source = plain.length ? 'text/plain' : html.length ? 'text/html' : 'none';
+    
+const body = [...new Set([...plain, ...html])].join('\n\n');
 
+const source = plain.length && html.length
+  ? 'text/plain + text/html'
+  : plain.length
+    ? 'text/plain'
+    : html.length
+      ? 'text/html'
+      : 'none';
     // Headers are untrusted too: an encoded word could decode to "x\nReply-To: …" and fake a
     // second header line, so every value is flattened to a single line.
     const oneLine = s => s.replace(/[\r\n]+/g, ' ').trim();
