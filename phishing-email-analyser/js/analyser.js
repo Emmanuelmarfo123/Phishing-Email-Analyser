@@ -33,7 +33,9 @@
    */
   function normaliseInput(raw) {
     const anchors = [];
-    let text = raw.replace(/\r\n?/g, '\n');
+    // Strip zero-width / invisible characters first. Attackers insert them to
+    // split keywords ("ver<zwsp>ify your pass<zwsp>word") so the rules miss them.
+    let text = raw.replace(/[​-‍⁠﻿­᠎]/g, '').replace(/\r\n?/g, '\n');
     const looksHtml = /<\s*(html|body|div|p|a|table|span|br)\b/i.test(text);
     if (looksHtml) {
       const aRe = /<a\b[^>]*?\bhref\s*=\s*(["'])(.*?)\1[^>]*>([\s\S]*?)<\/a\s*>/gi;
@@ -81,6 +83,21 @@
       .replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't').replace(/\$/g, 's');
   }
 
+  /**
+   * True if a hostname label mixes letters from more than one alphabet
+   * (e.g. a Latin "a" next to a Cyrillic "а" or Greek "ο"). Attackers register
+   * these to look identical to a real domain. Catches raw Unicode look-alikes
+   * that are not punycode-encoded, which the xn-- check alone would miss.
+   */
+  function hasMixedScript(host) {
+    return (host || '').split('.').some(label => {
+      const latin = /[a-z]/i.test(label);
+      const cyrillic = /[Ѐ-ӿ]/.test(label);
+      const greek = /[Ͱ-Ͽ]/.test(label);
+      return latin && (cyrillic || greek);
+    });
+  }
+
   // Brands that are too short or too common as substrings ("purchase" contains "chase").
   const SUBSTRING_SKIP = new Set(['office', 'outlook', 'chase', 'steam', 'irs', 'hmrc', 'dhl', 'apple', 'adobe', 'google']);
 
@@ -116,6 +133,8 @@
     }
     if (host.split('.').some(l => l.startsWith('xn--')))
       issues.push({ type: 'punycode', weight: 25, title: 'Internationalised (punycode) domain', detail: `"${host}" uses special characters that can look identical to normal letters (e.g. Cyrillic "а" instead of Latin "a").` });
+    if (hasMixedScript(host))
+      issues.push({ type: 'mixed-script', weight: 28, title: 'Domain mixes alphabets (look-alike letters)', detail: `"${host}" mixes letters from more than one alphabet (for example a Cyrillic "а" that looks like a Latin "a"). This is used to register domains that look identical to a real one.` });
     if (P.RISKY_TLDS.includes(tld))
       issues.push({ type: 'risky-tld', weight: 10, title: 'Frequently abused domain ending', detail: `".${tld}" domains are cheap and heavily used in phishing campaigns. Not proof on its own.` });
     if (P.ABUSED_HOSTS.some(h => host === h || host.endsWith('.' + h)))

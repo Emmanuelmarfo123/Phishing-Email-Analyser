@@ -167,5 +167,26 @@ let threw = false;
 try { P.parseEml(bin('Content-Type: multipart/mixed; boundary=X\n\n--X\nContent-Type: multipart/mixed; boundary=X\n\n--X\nContent-Transfer-Encoding: base64\n\n!!!\n')); P.parseEml('Content-Type: text/plain; charset=nope\n\n=ZZ =\n'); } catch (err) { threw = true; }
 check('malformed MIME does not throw', !threw);
 
+console.log('\nGerman-language phishing');
+r = P.analyse(`From: "Sparkasse Sicherheit" <service@sparkasse-sicherheit.xyz>
+Reply-To: hilfe@mail-einzug.ru
+Authentication-Results: mx.example.com; spf=fail smtp.mailfrom=sparkasse-sicherheit.xyz; dkim=none; dmarc=fail
+Subject: Dringend: Ihr Konto wurde gesperrt
+
+Sehr geehrter Kunde,
+wir haben eine ungewöhnliche Anmeldung festgestellt. Ihr Konto wurde gesperrt.
+Bitte verifizieren Sie Ihr Konto und bestätigen Sie Ihr Passwort innerhalb von 24 Stunden.
+Hier klicken: http://sparkasse.com.sicher-login.xyz/anmelden
+Andernfalls drohen rechtliche Schritte.`);
+check('German email is Critical', r.level === 'Critical', r.score);
+['urgency-de', 'threat-de', 'password-request-de', 'generic-greeting-de', 'click-lure-de']
+  .forEach(id => check('finds ' + id, ids(r).includes(id), ids(r).join(',')));
+
+console.log('\nUnicode evasion hardening');
+r = P.analyse('Please ver​ify your account and con​firm your pass​word now.');
+check('zero-width split keyword still detected', ids(r).includes('password-request'), ids(r).join(','));
+r = P.analyse('From: "PayPal" <service@pаypal.com>\nSubject: hi\n\nHello');
+check('mixed-script sender domain flagged', ids(r).includes('sender-mixed-script'), ids(r).join(','));
+
 console.log(`\n${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);
