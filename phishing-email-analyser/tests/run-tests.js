@@ -125,8 +125,12 @@ let e = P.parseEml(bin(eml([
   '',
   'TVqQAAMAAAAEAAAA',
   '--OUTER--', ''])));
-check('uses the text/plain part', e.source === 'text/plain' && !/HTML copy/.test(e.text), e.source);
-check('soft line break joined ("password")', /confirm your password at/.test(e.text), e.text);
+check('uses both plain text and HTML',
+  e.source === 'text/plain + text/html' &&
+  e.text.includes('HTML copy') &&
+  e.text.includes('password'),
+  e.source);
+  check('soft line break joined ("password")', /confirm your password at/.test(e.text), e.text);
 check('QP UTF-8 bytes decoded (em dash)', e.text.includes('hours — or'));
 check('RFC 2047 base64 display name decoded', e.text.includes('From: PayPal Security <service@paypa1-secure.xyz>'));
 check('RFC 2047 folded Q subject decoded', e.text.includes('Subject: Your account has been suspended – act now'), e.text.split('\n')[2]);
@@ -146,7 +150,39 @@ check('no tags / script / style left', !/<\/?(p|body|script|style|html)\b|alert\
 check('entity decoded', e.text.includes('Dear user, sign in'), e.text);
 r = P.analyse(e.text, 'email');
 check('misleading link text still detected from stripped HTML', ids(r).includes('url-misleading-text'), ids(r).join(','));
+// Multipart email: a safe plain-text body must not hide a phishing HTML link.
+e = P.parseEml(bin(eml([
+  'From: Security <security@example.com>',
+  'Subject: Account update',
+  'MIME-Version: 1.0',
+  'Content-Type: multipart/alternative; boundary="TESTBOUNDARY"',
+  '',
+  '--TESTBOUNDARY',
+  'Content-Type: text/plain; charset=utf-8',
+  '',
+  'Your account is safe.',
+  '--TESTBOUNDARY',
+  'Content-Type: text/html; charset=utf-8',
+  '',
+  '<html><body><a href="https://fake-login.example/login">https://www.paypal.com</a></body></html>',
+  '--TESTBOUNDARY--',
+  ''
+])));
+check(
+  'multipart email includes HTML phishing link',
+  e.source === 'text/plain + text/html' &&
+  e.text.includes('Your account is safe.') &&
+  e.text.includes('fake-login.example'),
+  e.source
+);
 
+r = P.analyse(e.text, 'email');
+
+check(
+  'detects misleading link in multipart HTML',
+  ids(r).includes('url-misleading-text'),
+  ids(r).join(', ')
+);
 // Latin-1 8-bit body is decoded with its declared charset
 e = P.parseEml(new Uint8Array(Buffer.from('From: a@b.com\r\nContent-Type: text/plain; charset=iso-8859-1\r\n\r\nCaf\xe9 menu', 'latin1')).buffer);
 check('ISO-8859-1 body (ArrayBuffer input)', e.text.includes('Café menu'), e.text);
